@@ -1,0 +1,52 @@
+// ============ 主题 CSS 变量（浅色默认） ============
+:root {
+  --bg-page: #f5f7fa;
+  --bg-card: #ffffff;
+  --bg-sidebar: #ffffff;
+  --text-primary: #303133;
+  --text-regular: #606266;
+  --text-secondary: #909399;
+  --border-color: #ebeef5;
+}
+
+// ============ 深色主题覆盖 ============
+.dark {
+  --bg-page: #0b0d10;
+  --bg-card: #1d1e1f;
+  --bg-sidebar: #17181a;
+  --text-primary: #e5eaf3;
+  --text-regular: #cfd3dc;
+  --text-secondary: #8a8f99;
+  --border-color: #414243;
+}
+
+// ============ 基础样式 ============
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Microsoft YaHei',
+    Arial, sans-serif;
+  color: var(--text-primary);
+  background-color: var(--bg-page);
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: $primary-color;
+  text-decoration: none;
+}
+
+// 通用页面容器
+.page-container {
+  padding: 20px;
+}
