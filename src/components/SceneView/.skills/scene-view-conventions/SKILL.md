@@ -37,6 +37,12 @@ description: vue3-element-app 项目内基于 SceneView 组件库搭建 three.js
 - 配色、Element Plus 交互行为、贴图规格、已知坑位清单见 `references/style-rules.md`。
 - 改动前先读对应 reference；不擅自突破既定约束、不改组件库默认行为。
 
+## 新建与迁移项目的硬性约定
+
+- 所有三维场景（新建或从其他项目迁移）都必须基于 `SceneView` 搭建。页面里不允许出现 `new THREE.WebGLRenderer / new THREE.Scene / new OrbitControls / CSS2DRenderer / CSS3DRenderer`，也不允许用 `requestAnimationFrame` 自建渲染循环。
+- 迁移过来的项目要按本规范改造：删掉自建渲染层 → `new SceneView(container, options)`；每帧业务逻辑放进 `animateCallback`；文本走 `sceneView.createText`；模型走 `sceneView.loadGLB`；销毁走 `sceneView.clear()`。
+- 迁移时需核对两处版本差异：r150+ 的 `position/rotation/scale` 是只读访问器，只能 `.copy()` 不能整体赋值；r155+ 改为物理光照单位，老项目的光强要按约 π 倍放大才能还原亮度。
+
 ## 资源导航
 
 | 文件 | 何时读 |

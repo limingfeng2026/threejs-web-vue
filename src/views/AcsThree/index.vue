@@ -45,23 +45,14 @@
 <script>
   import { markRaw } from 'vue'
   import * as THREE from 'three'
-  import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js' // 控制器
-  import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
-  import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js'
+  import SceneView from '@/components/SceneView/index.js'   // 场景统一由组件库装配
   import TWEEN from '@tweenjs/tween.js'
-  import Object3DEvent from '@/components/SceneView/utils/object3DEvent.js'
-  import { CSS3DRenderer, CSS3DSprite, CSS3DObject } from 'three/examples/jsm/renderers/CSS3DRenderer.js'
-  import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js'
   import { PathPointList, PathGeometry } from 'three.path'
-  let scene; 
-  let camera; 
-  let render; 
-  let render3dText; 
-  let render2dText; 
-  let controler; 
+  let sceneView;   // SceneView 实例：渲染循环 / 控制器 / 文本层都归它管
+  let scene;
+  let camera;
+  let controler;   // = sceneView.controls（MapControls），业务里只做开关与 target
   let mixer; // 动画
-  const clock = new THREE.Clock()
-  let AmbientLight, DirectionalLight, DirectionalLight1, objEvent
   let roofObject; // 存储楼顶对象
   const roofHeight = 40; // 假设楼顶高度为 40，根据实际情况修改
   const roomLineData = {
@@ -83,9 +74,6 @@
   };
   const textureLoader = new THREE.TextureLoader();
   const BASE = import.meta.env.BASE_URL   // 站点部署在子目录时，资源路径必须带 base
-  // Draco 解码器（scene_opt.glb 为 Draco 压缩版本，走 CDN 前需解压几何）
-  const dracoLoader = new DRACOLoader();
-  dracoLoader.setDecoderPath(`${import.meta.env.BASE_URL}3d/draco/`);
   const SCENE_GLB_SIZE = 1358912; // scene_opt.glb 字节数，用于加载进度
   const arrowTexture = textureLoader.load(BASE + 'glb/arrow.svg', (texture) => {
     texture.wrapS = THREE.RepeatWrapping;
@@ -294,81 +282,72 @@
       format() {
         return ''
       },
-      // 场景初始化
+      // 场景初始化：统一交给 SceneView 装配（不再页面手写 renderer/scene/controls）
       init() {
         this.views = this.$refs.views
-        scene = new THREE.Scene()
-        camera = new THREE.PerspectiveCamera(45, this.views.clientWidth / this.views.clientHeight, 1, 5000)
-        camera.position.copy(this.modelCameras[this.viewIndex].position);
-        // 初始化漫游相机
-        this.roamingCamera = markRaw(new THREE.PerspectiveCamera(45, this.views.clientWidth / this.views.clientHeight, 1, 5000))
-        render = new THREE.WebGLRenderer({ antialias: true, alpha: true })
-        render.setPixelRatio(window.devicePixelRatio)
-        render.setSize(this.views.clientWidth, this.views.clientHeight)
-        render.shadowMap.enabled = true
-        this.views.appendChild(render.domElement)
-    
-        objEvent = new Object3DEvent(this.views, scene, camera, false)
-        this.initLight()
-        this.initTextRender()
-        // this.initComposer()
-        // this.initOutlineEffect()
-        this.initControls()
-        // 添加坐标轴辅助器，参数表示坐标轴的长度
-        // const axesHelper = new THREE.AxesHelper(1000); 
-        // scene.add(axesHelper);
-      },
-      // 初始化文本渲染器
-      initTextRender() {
-        render3dText = new CSS3DRenderer({ alpha: true })
-        render3dText.domElement.style.position = 'absolute'
-        render3dText.domElement.style.zIndex = 2
-        render3dText.domElement.style.top = 0
-        render3dText.domElement.style.left = 0
-        render3dText.setSize(this.views.clientWidth, this.views.clientHeight)
-        this.views.appendChild(render3dText.domElement)
+        sceneView = new SceneView(this.views, {
+          bgColor: 0xc7ffff,              // 与原页面同色
+          environment: false,
+          shadowMapEnabled: false,         // 原页面虽开 shadowMap，但材质未开 receiveShadow，无可见阴影，这里保持一致
+          fontUrl: '',                    // 本项目不内置 typeface，避免无谓 404
+          dracoPath: BASE + '3d/draco/',
+          floor: { enabled: false },
+          floorReflection: { enabled: false },
+          fog: { enabled: false },
+          hemiLight: { enabled: false },
+          ambLight: { enabled: true, color: 0x404040, intensity: 6 },   // r187 物理光照单位，原 r140 的 2 需放大约 π 倍
+          dirLight: {
+            enabled: true,
+            color: 0xffffff,
+            intensity: 0.6,
+            position: { x: -150, y: 850, z: 300 },
+            castShadow: false,
+            shadowCameraLeft: -512,
+            shadowCameraRight: 512,
+            shadowCameraTop: -512,
+            shadowCameraBottom: 512,
+            shadowCameraNear: -512,
+            shadowCameraFar: 512,
+            shadowCameraMapSize: { width: 2048, height: 2048 },
+          },
+          control: {
+            enabled: true,
+            enableDamping: true,
+            dampingFactor: 0.8,
+            zoomSpeed: 1.5,
+            minDistance: 20,
+            maxDistance: 1000,
+          },
+          postProcessing: {
+            enabled: false,
+            // 原页面是 r140 默认 NoToneMapping，组件默认 ACES 会把灰阶压暗，这里还原
+            output: { toneMapping: THREE.NoToneMapping, toneMappingExposure: 1 },
+          },
+        })
+        scene = sceneView.scene
+        camera = sceneView.camera
+        camera.fov = 45                 // 原页面 45°，组件默认 50°
+        camera.updateProjectionMatrix()
+        camera.position.copy(this.modelCameras[this.viewIndex].position)
+        controler = sceneView.controls
 
-        render2dText = new CSS2DRenderer({ alpha: true })
-        render2dText.domElement.style.position = 'absolute'
-        render2dText.domElement.style.zIndex = 1
-        render2dText.domElement.style.top = 0
-        render2dText.setSize(this.views.clientWidth, this.views.clientHeight)
-        this.views.appendChild(render2dText.domElement)
-      },
-      initLight(){
-          AmbientLight = new THREE.AmbientLight(0x404040, 2)
-          DirectionalLight = new THREE.DirectionalLight(0xffffff,  0.2)
-          DirectionalLight.position.set(-150, 850, 300)
-          DirectionalLight1 = new THREE.DirectionalLight(0xffffff, 0.2)
-          DirectionalLight1.position.set(150, 850, -300)
-          // 灯光阴影设置
-          DirectionalLight.shadow.mapSize.width = 2048;
-          DirectionalLight.shadow.mapSize.height = 2048;
-          DirectionalLight.castShadow = true;
-          DirectionalLight.shadow.camera.near = -512;
-          DirectionalLight.shadow.camera.far = 512;
-          DirectionalLight.shadow.camera.left = -512;
-          DirectionalLight.shadow.camera.right = 512;
-          DirectionalLight.shadow.camera.top = -512;
-          DirectionalLight.shadow.camera.bottom = 512;
-          DirectionalLight.shadow.camera.fov = 0;
-          scene.add(AmbientLight, DirectionalLight, DirectionalLight1)
-          // 平行关helper
-          // const helper = new THREE.DirectionalLightHelper( DirectionalLight, 15 );
-          // scene.add( helper );
-      },
-      // 初始化控制器
-      initControls() {
-        controler = new OrbitControls(camera, this.views)
-        // controler.minPolarAngle = -Math.PI / 1.2
-        // controler.maxPolarAngle = Math.PI / 2.1
-        // 设置最小缩放距离
-        controler.minDistance = 20; 
-        // 设置最大缩放距离
-        controler.maxDistance = 1000; 
-        controler.enableDamping = true
-        controler.dampingFactor = 0.8
-        controler.zoomSpeed = 1.5
+        // 文本层默认 z 100/200，会让标签盖住按钮与加载遮罩，这里压回原页面的 1/2
+        if (sceneView.textLayer) {
+          sceneView.textLayer.render2d.domElement.style.zIndex = 2
+          sceneView.textLayer.render3d.domElement.style.zIndex = 1
+        }
+
+        // 原页面第二盏平行光（对称补光），组件只给一盏，这里补上
+        const fillLight = new THREE.DirectionalLight(0xffffff, 0.6)
+        fillLight.position.set(150, 850, -300)
+        scene.add(fillLight)
+
+        // 漫游相机
+        this.roamingCamera = markRaw(new THREE.PerspectiveCamera(45, this.views.clientWidth / this.views.clientHeight, 1, 5000))
+
+        // 每帧业务回调交给组件驱动，start() 后自动跑
+        sceneView.animateCallback = (delta) => this.animationStep(delta)
+        sceneView.start()
       },
       // 创建文本
       createText(model, className, text, position, type='2d', offset) {
@@ -378,20 +357,16 @@
           style = `transform: translate(${offset.x}, ${offset.y});`
         }
         element.innerHTML = `<div class="${className}" style="${style}"><span class="text-element">${text}</span></div>`
-        let cssText;
-        this.$nextTick(() => {
-          if(type === '2d') {
-            cssText = new CSS2DObject(element)
-          }else if(type == '3ds'){
-            cssText = new CSS3DSprite(element)
-            cssText.scale.set(0.1, 0.1, 0.1)
-          }else if(type == '3d') {
-            cssText = new CSS3DObject(element)
-          }
-          cssText.position.copy(position)
-          cssText.name = `${text}_label` 
-          model.add(cssText)
+        // 文本层统一由 SceneView 的 TextLayer 创建（2d / 3ds / 3d 同款 DOM 结构）
+        const cssText = sceneView.createText({
+          element: element.firstElementChild,
+          type,
+          position,
         })
+        if (!cssText) return
+        if (type === '3ds') cssText.scale.set(0.1, 0.1, 0.1)
+        cssText.name = `${text}_label`
+        model.add(cssText)
       },
       createPointGeo() {
         for(let key in this.personObject) {
@@ -400,27 +375,22 @@
         }
         scene.add(this.doorDeviceGroup)
       },
-      // 加载 GLB 模型的方法
+      // 加载 GLB 模型的方法（走 SceneView 的 loaderHub，Draco 已按 dracoPath 配置）
       loadGLBModel(filePath, showLoading) {
-        const loader = new GLTFLoader();
-        loader.setDRACOLoader(dracoLoader);   // 压缩版模型需要 Draco 解码
         return new Promise((resolve, reject) => {
-          // 存储需要闪烁的球体
-          loader.load(
+          sceneView.loadGLB(
             filePath,
-            (gltf) => {
-              resolve(gltf);
-            },
+            (gltf) => resolve(gltf),
             (xhr) => {
-              if(showLoading) {
+              if (showLoading) {
                 this.progress = Math.floor(xhr.loaded / SCENE_GLB_SIZE * 100)
               }
             },
             (error) => {
-              console.error('An error happened', error);
-              reject(error);
+              console.error('An error happened', error)
+              reject(error)
             }
-          );
+          )
         })
       },
       // 处理房间模型
@@ -572,40 +542,34 @@
         group.add(model);
         this.personWoman = markRaw(group)
       },
-      // 场景自适应
+      // 场景自适应（画布 / 文本层尺寸都由组件统一处理）
       resizeView() {
-        render.setPixelRatio(window.devicePixelRatio)
-        render.setSize(this.views.clientWidth, this.views.clientHeight)
-        render3dText.setSize(this.views.clientWidth, this.views.clientHeight)
-        render2dText.setSize(this.views.clientWidth, this.views.clientHeight)
-        camera.aspect = this.views.clientWidth / this.views.clientHeight// 相机重置可视范围
-        camera.updateProjectionMatrix()
-        // let selectedBox = outlinePassOfBox.selectedObjects
-        // this.initComposer()
-        // outlinePass.selectedObjects = this.activeObj ? [this.activeObj] : []
-        // outlinePassOfBox.selectedObjects = selectedBox
-        objEvent.resize()
+        if (!sceneView) return
+        sceneView.resizeView()
+        const w = this.views.clientWidth
+        const h = this.views.clientHeight
+        if (this.roamingCamera && h > 0) {
+          this.roamingCamera.aspect = w / h
+          this.roamingCamera.updateProjectionMatrix()
+        }
       },
       // 场景销毁
       sceneClear() {
-        scene.clear()
-        render.dispose()
-        objEvent.clear()
-        scene.traverse(child => {
-          if (child.isMesh) {
-            child.geometry.dispose()
-            child.material.dispose()
-          }
-        })
-        scene = null
-        camera = null
-        controler = null
+        window.removeEventListener('resize', this.resizeView)
         this.personMan = null
         this.personWoman = null
         this.activeDoorIndex = []
         this.actions = {}
-        cancelAnimationFrame(this.animateId)
-        window.removeEventListener('resize', this.resizeView)
+        if (this.closeTimer) clearTimeout(this.closeTimer)
+        if (this.resetTimer) clearTimeout(this.resetTimer)
+        if (sceneView) {
+          sceneView.animateCallback = null
+          sceneView.clear()
+          sceneView = null
+        }
+        scene = null
+        camera = null
+        controler = null
       },
       // tween动画
       thingAnimate(start, end, duration) {
@@ -1225,28 +1189,23 @@
 
         return sprite;
       },
-      // 场景动画
-      animation() {
-        const delta = clock.getDelta()
-        TWEEN.update()
-        controler.update(delta)
-        // 根据是否漫游选择渲染相机
-        const renderCamera = this.isRoaming ? this.roamingCamera : camera;
-        render.render(scene, renderCamera)
-        // composer.render(scene, renderCamera)
-        render3dText.render(scene, renderCamera)
-        render2dText.render(scene, renderCamera)
-        // 检查是否缺少更新动画混合器的代码
+      // 每帧业务逻辑（由 SceneView.animateCallback 驱动，渲染本身由组件完成）
+      animationStep(delta) {
+        // 漫游时把组件相机切到漫游相机，让渲染与文本层都跟着走
+        const renderCamera = this.isRoaming ? this.roamingCamera : camera
+        if (sceneView.camera !== renderCamera) sceneView.camera = renderCamera
+
+        // 更新动画混合器
         if (mixer) {
-          mixer.update(delta);
+          mixer.update(delta)
         }
-         // 更新每个克隆人物的动画混合器
+        // 更新每个克隆人物的动画混合器
         this.scenePersons.forEach(person => {
           if (person.mixer) {
-            person.mixer.update(delta);
+            person.mixer.update(delta)
           }
-        });
-        if(arrowTexture) {
+        })
+        if (arrowTexture) {
           arrowTexture.offset.x -= 0.03
         }
         // 实现闪烁效果
@@ -1256,10 +1215,9 @@
         // 更新所有 Sprite 的缩放
         this.doorDeviceGroup.children.forEach(child => {
           if (child.isSprite && child.updateScale) {
-            child.updateScale(renderCamera);
+            child.updateScale(renderCamera)
           }
-        });
-        this.animateId = requestAnimationFrame(this.animation)
+        })
       }
     },
     async mounted() {
@@ -1270,8 +1228,6 @@
       this.loadGLBModel(BASE + 'glb/scene/scene_opt.glb', true).then((gltf) => {
         setTimeout(() => {
           this.handerRooms(gltf)
-          // 调用创建人物模型的方法
-          this.animation()
           this.createPointGeo()
           // 使用精灵材质设置门禁文本信息
           this.createDoorTextWithSprite(); 
