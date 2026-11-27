@@ -295,8 +295,12 @@ export function createDefaultParams() {
             '/3d/BlueSky/posy.jpg', '/3d/BlueSky/negy.jpg',
             '/3d/BlueSky/posz.jpg', '/3d/BlueSky/negz.jpg',
         ],
-        /** createText({ type: '3d-font' }) 的字体文件 */
-        fontUrl: '/font/gentilis_regular.typeface.json',
+        /**
+         * createText({ type: '3d-font' }) 的字体文件。
+         * 默认留空：不在运行时请求任何字体文件（此前指向的 /font/gentilis_regular.typeface.json 并未随项目提供，会 404）。
+         * 需要 3D 挤出文字时，把 face 转换出的 typeface.json 放到 public/font/，再把这里写成 '/font/xxx.typeface.json'。
+         */
+        fontUrl: '',
     };
 }
 

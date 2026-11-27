@@ -692,7 +692,6 @@ onMounted(() => {
     Object.keys(files.value).forEach((url) => {
       loadModel(url)
     })
-    // loadFBX('/3d/fbx/newMap.FBX')
     // 每帧业务逻辑交给 SceneView 的渲染循环，不再自己维护 requestAnimationFrame
     sceneView.animateCallback = onFrame
     sceneView.start()

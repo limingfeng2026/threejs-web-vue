@@ -1,3 +1,10 @@
+/**
+ * 深圳水务地图的本地 mock 数据源（无后端，getAllFactories 直接返回静态数据）。
+ *
+ * 注意：部分水厂的 threeConfig 字段里保留了旧项目的 Unity 平台地址
+ * （/asset3d/yantiangang|futian|honghu/...）。本项目并没有 public/asset3d 资源，
+ * 这些字段只作为原始数据展示，不会被请求或加载；要接旧平台请先补齐对应资源。
+ */
 export default {
   async getAllFactories(refresh = false) {
     const respone = {data: [

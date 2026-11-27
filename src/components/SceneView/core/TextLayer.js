@@ -117,12 +117,18 @@ export class TextLayer {
 
     /** 真正的挤出字体网格 */
     async _createTextGeometry({ text, color, position, fontUrl, size, depth }) {
-        const url = fontUrl || '/font/gentilis_regular.typeface.json';
+        // 没有配置字体就完全不发请求：项目默认不内置 typeface.json，
+        // 以前兜底写死 '/font/gentilis_regular.typeface.json' 会稳定 404
+        if (!fontUrl) {
+            console.warn('[SceneView] 未配置 fontUrl，跳过 3D 挤出文字。需要该功能请把 typeface.json 放到 public/font/ 并设置 config.fontUrl');
+            return null;
+        }
+
         let font = null;
         try {
-            font = await this._loadFont(url);
+            font = await this._loadFont(fontUrl);
         } catch (error) {
-            console.warn(`[SceneView] 字体加载失败，无法创建 3D 字体：${url}`, error);
+            console.warn(`[SceneView] 字体加载失败，无法创建 3D 字体：${fontUrl}`, error);
             return null;
         }
 
