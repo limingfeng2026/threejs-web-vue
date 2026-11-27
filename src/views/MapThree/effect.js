@@ -73,6 +73,53 @@ export const borderSweep = `
     gl_FragColor = vec4(lineColor, uOpacity);
   }
 `
+
+// ============ 轮廓边缘流光（头部亮核 + 身后拖尾） ============
+export const edgeFlowVertex = `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`
+export const edgeFlowFragment = `
+  uniform vec3 lineColor;    // 边线基础冷蓝
+  uniform vec3 hiColor;       // 流光头部高亮青
+  uniform float iTime;
+  uniform float uSpeed;       // 巡游速度（圈/秒）
+  uniform float uPhase;       // 环间错峰相位 0~1
+  uniform float uCount;        // 每条环上的流光条数
+  uniform float uTail;        // 单条拖尾长度（弧长占比 0~1）
+  uniform float uOpacity;     // 整体透明度
+  varying vec2 vUv;
+
+  void main() {
+    float u = vUv.x;
+
+    float bestCore = 0.0;
+    float bestTail = 0.0;
+    // 一条环上均匀铺 uCount 个流光，相邻间隔 1/uCount
+    for (int k = 0; k < 32; k++) {
+      if (float(k) >= uCount) break;
+      float head = fract(iTime * uSpeed + uPhase + float(k) / uCount);
+      // ahead：头部前方距离；behind：头部身后距离（环形 0~1）
+      float ahead  = fract(u - head);
+      float behind = fract(head - u);
+      // 头部亮核：前方贴近头部处最亮
+      float core = 1.0 - smoothstep(0.0, 0.05, ahead);
+      // 身后拖尾：指数衰减，尾长限制在 uTail 弧长内
+      float tailMask = 1.0 - smoothstep(uTail * 0.66, uTail, behind);
+      float tail = exp(-behind * 6.5) * tailMask;
+      bestCore = max(bestCore, core);
+      bestTail = max(bestTail, tail);
+    }
+
+    vec3 col = mix(lineColor, hiColor, bestCore);
+    // 常驻微光边线 + 拖尾 + 亮核
+    float alpha = clamp(0.10 + bestTail * 0.6 + bestCore * 1.2, 0.0, 1.0);
+    gl_FragColor = vec4(col, alpha * uOpacity);
+  }
+`
 export const bgPlane = `
 #define PI 3.14159265359
 

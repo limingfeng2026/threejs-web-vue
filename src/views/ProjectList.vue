@@ -14,6 +14,8 @@ const menus = [
   { index: '/three-scene', title: '3D 场景', icon: 'Box' },
   { index: '/car-scene', title: '汽车演示', icon: 'Van' },
   { index: '/map-three', title: '水务地图', icon: 'MapLocation' },
+  { index: '/earth-scene', title: '地球大屏', icon: 'Sunny' },
+  { index: '/city-map', title: '长沙点位', icon: 'Place' },
   { index: '/about', title: '关于', icon: 'InfoFilled' },
 ]
 
@@ -57,6 +59,22 @@ const projects = [
     tags: ['OBJ', 'GeoJSON', '点位标注'],
     icon: 'MapLocation',
   },
+  {
+    path: '/earth-scene',
+    title: '地球大屏可视化',
+    description:
+      '球面地球可视化大屏：地表与云层双层球、大气菲涅尔辉光、城市光柱与标签、贝塞尔飞线、卫星轨迹流环、星空粒子与中国边界流光轮廓，接入 SceneView 渲染管线。',
+    tags: ['球面地球', '飞线', '流光轨迹'],
+    icon: 'Sunny',
+  },
+  {
+    path: '/city-map',
+    title: '长沙城市点位',
+    description:
+      '迁移自 maptalks 城市点位案例：去除地图库，改用 SceneView 内置 Web Mercator 投影摆放长沙五处经纬度点位，锥体点位上下浮动与自转、随动标签、贝塞尔汇聚飞线流光。',
+    tags: ['墨卡托投影', '点位标注', '汇聚飞线'],
+    icon: 'Place',
+  },
 ]
 
 const openProject = (item) => {
@@ -98,8 +116,8 @@ const openProject = (item) => {
         <p class="list-subtitle">点击卡片进入对应项目页面</p>
       </div>
 
-      <el-row :gutter="20">
-        <el-col v-for="item in projects" :key="item.path" :xs="24" :sm="12" :md="8">
+      <el-row :gutter="16">
+        <el-col v-for="item in projects" style="margin-bottom: 16px;" :key="item.path" :xs="24" :sm="12" :md="8">
           <el-card class="project-card" shadow="hover" @click="openProject(item)">
             <div class="card-icon">
               <el-icon :size="28"><component :is="item.icon" /></el-icon>

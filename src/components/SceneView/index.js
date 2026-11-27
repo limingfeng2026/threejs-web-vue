@@ -317,7 +317,9 @@ class SceneView {
      */
     _clampPanTarget() {
         const limit = this.params.control && this.params.control.panLimit;
-        if (!this.controls || !limit || !limit.enabled) return;
+        if (!this.controls || !limit || !limit.enabled) {
+            return;
+        }
 
         const target = this.controls.target;
         const min = limit.min || {};

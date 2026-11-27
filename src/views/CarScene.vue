@@ -1,11 +1,15 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 import SceneView from '@/components/SceneView/index.js'
+import SceneLoading from '@/components/SceneLoading/index.vue'
 import TWEEN from '@tweenjs/tween.js'
 
 const container = ref(null)
 const loading = ref(true)
 const progress = ref(0)
+// 真实加载目标进度：进度条向它缓动爬升，到 100 再关闭遮罩
+const targetProgress = ref(0)
+let enterTimer = null
 
 let sceneView = null
 let THREE = null
@@ -15,6 +19,10 @@ let detailsMaterial = null
 let glassMaterial = null
 let bodyShader = null
 let carSweepTween = null
+// 行驶状态：点击按钮切换；轮子转动与地板纹理滚动仅在行驶中进行
+const running = ref(false)
+let floorTex = null
+let driveBtn = null
 // 车身纵向（车头→车尾，z 轴）包围盒范围，由加载后的包围盒写入
 let bodyZMin = -2.267
 let bodyZMax = 2.256
@@ -37,7 +45,7 @@ const carColors = [
 const currentColor = ref(carColors[carColors.length - 1].hex)
 
 // 颜色过渡动画时长（ms）
-const COLOR_TWEEN_DURATION = 500
+const COLOR_TWEEN_DURATION = 800
 let colorTween = null
 
 // 从起点色平滑过渡到目标 hex，onUpdate 每帧返回插值后的 rgb
@@ -74,8 +82,7 @@ const applyCarColor = (hex) => {
 // 常用展厅背景色：选背景时，背景、雾、地板一起联动
 const bgColors = [
   { name: '冷蓝', hex: '#0a1420' },
-  { name: '深灰', hex: '#33373d' },
-  { name: '米白', hex: '#d8d4cc' },
+  { name: '深灰', hex: '#33373d' }
 ]
 const currentBgColor = ref('#0a1420')
 
@@ -91,15 +98,29 @@ const applyBgColor = (hex) => {
     if (bg && bg.isColor) bg.setRGB(r, g, b)
     if (sceneView.scene.fog && sceneView.scene.fog.color) sceneView.scene.fog.color.setRGB(r, g, b)
     if (sceneView.floor && sceneView.floor.material && THREE) {
-      sceneView.floor.material.color.setRGB(
-        Math.min(r * 1.5, 1), Math.min(g * 1.5, 1), Math.min(b * 1.5, 1)
-      )
+      const floorMat = sceneView.floor.material
+      // 挂贴图后 baseColor 保持白色：color 会与贴图相乘，跟随背景变色会把网格压暗；
+      // 仅无贴图时才按背景色提亮联动
+      if (floorMat.map) {
+        floorMat.color.setRGB(1, 1, 1)
+      } else {
+        floorMat.color.setRGB(
+          Math.min(r * 1.5, 1), Math.min(g * 1.5, 1), Math.min(b * 1.5, 1)
+        )
+      }
     }
   })
 }
 
+// 点击按钮：切换行驶状态，文案联动
+const toggleDrive = () => {
+  running.value = !running.value
+  if (driveBtn) driveBtn.textContent = running.value ? '停止汽车' : '启动汽车'
+}
+
 const CAR_URL = '/3d/glb/car/car.glb'
 const shadowUrl = '/3d/glb/car/ferrari_ao.png'
+const FLOOR_TEX_URL = '/3d/textures/car-floor.png'
 
 // 加载汽车模型：按节点名替换车身 / 轮毂 / 玻璃材质，收集车轮做旋转动画
 const loadCar = () => {
@@ -170,7 +191,9 @@ const loadCar = () => {
   sceneView.glbModelLoader(CAR_URL, (gltf) => {
     const carModel = gltf.scene.children[0] || gltf.scene
     carModel.name = 'carModel'
-
+    carModel.on('dblclick', (g,m,p) => {
+      console.log(m)
+    })
     // 车身
     const body = carModel.getObjectByName('body')
     if (body) {
@@ -220,6 +243,7 @@ const loadCar = () => {
     );
     mesh.rotation.x = - Math.PI / 2;
     mesh.renderOrder = 2;
+    mesh.position.y = 0.2
     sceneView.scene.add(mesh)
 
     sceneView.scene.add(carModel)
@@ -229,17 +253,40 @@ const loadCar = () => {
     sceneView.controls.target.set(0, 0.4, 0)
     sceneView.controls.update()
 
-    progress.value = 100
-    loading.value = false
-  })
+    // 模型就绪：交给 onFrame 缓动爬满后再关闭遮罩
+    targetProgress.value = 100
+  },
+  // 真实下载进度（0-100）回写目标进度
+  (xhr, p) => { targetProgress.value = Math.max(targetProgress.value, p) }
+)
 }
 
-// 每帧：车轮滚动
-const onFrame = () => {
-  const time = -performance.now() / 1000
+// 行驶参数：轮子转速(rad/s)、地板网格滚动速度(UV/s)
+const WHEEL_SPEED = Math.PI * 1.8
+const FLOOR_SCROLL_SPEED = 1.0
+
+// 每帧：进度缓动爬升 → 行驶中车轮滚动 + 地板网格向后滚动
+const onFrame = (delta) => {
+  // 进度条向真实目标缓动爬升（加载期，不受行驶状态拦截）
+  if (loading.value) {
+    if (progress.value < targetProgress.value) {
+      progress.value += (targetProgress.value - progress.value) * 0.12 + 0.4
+      if (progress.value > targetProgress.value) progress.value = targetProgress.value
+    }
+    if (targetProgress.value >= 100 && progress.value >= 99.5) {
+      progress.value = 100
+      loading.value = false
+    }
+  }
+
+  if (!running.value) return
+  const dt = delta || 0.016
   wheels.forEach((wheel) => {
-    if (wheel) wheel.rotation.x = time * Math.PI * 1.5
+    if (wheel) wheel.rotation.x -= WHEEL_SPEED * dt
   })
+  if (floorTex) {
+    floorTex.offset.y += FLOOR_SCROLL_SPEED * dt
+  }
 }
 
 onMounted(() => {
@@ -249,9 +296,20 @@ onMounted(() => {
     environment: false,
     environmentIntensity: 0.6,
     shadowMapEnabled: false,
-    floor: { name: 'scene_floor', enabled: true, color: 0x14263a},
-    fog: { enabled: true, near: 0.1, far: 1000, color: 0x0a1420, density: 0.0002 },
-    isNight: false,
+    floor: { name: 'scene_floor', enabled: true, color: 0x14263a, width: 30, height: 30 },
+    fog: { enabled: true, near: 1, far: 30, color: 0x0a1420, density: 0.1 },
+    control: {
+      enabled: true,
+      enableDamping: true,
+      dampingFactor: 0.3,
+      zoomSpeed: 2,
+      minDistance: 1,
+      maxDistance: 15,
+      autoRotateSpeed: -0.2,
+      minPolarAngle: -Math.PI / 2,
+      maxPolarAngle: Math.PI / 2.2,
+      panLimit: { enabled: true, min: { x: -4, z: -4 }, max: { x: 4, z: 4 } }
+    },
     dirLight: {
       enabled: true,
       color: 0xcfe0ff,
@@ -272,11 +330,23 @@ onMounted(() => {
   })
   THREE = sceneView.THREE
   sceneView.addFloorReflections(sceneView.floor)
-  sceneView.floor.visible = false
-  // 3Ds 标注：这是一辆汽车
+  // 地板贴科技网格底纹：原地板保留可见，反射层叠在其上
+  floorTex = new THREE.TextureLoader().load(FLOOR_TEX_URL)
+  floorTex.colorSpace = THREE.SRGBColorSpace
+  floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping
+  floorTex.repeat.set(20, 20)
+  sceneView.floor.material.map = floorTex
+  sceneView.floor.material.color.set(0xffffff)
+  sceneView.floor.material.needsUpdate = true
+  // 悬浮按钮：点击切换行驶（轮子转动 + 地板网格滚动）
+  driveBtn = document.createElement('button')
+  driveBtn.type = 'button'
+  driveBtn.className = 'car-label'
+  driveBtn.textContent = '启动汽车'
+  driveBtn.style.pointerEvents = 'auto'
+  driveBtn.addEventListener('click', toggleDrive)
   const label = sceneView.createText({
-    element: '点击切换车身颜色',
-    className: 'car-label',
+    element: driveBtn,
     color: '#00dddd',
     type: '3ds',
     position: { x: 0, y: 1.5, z: 0 },
@@ -286,6 +356,15 @@ onMounted(() => {
 
   loadCar()
 
+  // 兜底：资源异常或卡住时 8s 后强制进入展示态
+  enterTimer = setTimeout(() => {
+    if (loading.value) {
+      targetProgress.value = 100
+      progress.value = 100
+      loading.value = false
+    }
+  }, 8000)
+
   sceneView.animateCallback = onFrame
   sceneView.start()
 })
@@ -293,6 +372,7 @@ onMounted(() => {
 onUnmounted(() => {
   if (carSweepTween) { carSweepTween.stop(); carSweepTween = null }
   if (colorTween) { colorTween.stop(); colorTween = null }
+  if (enterTimer) { clearTimeout(enterTimer); enterTimer = null }
   if (sceneView) {
     sceneView.clear()
     sceneView = null
@@ -305,21 +385,16 @@ onUnmounted(() => {
     <!-- 3D 渲染区域 -->
     <div ref="container" class="car-canvas-wrap"></div>
 
-    <!-- 模型加载 Loading -->
-    <div v-if="loading" class="loading-mask">
-      <div class="loading-content">
-        <div class="loading-text">Loading</div>
-        <div class="loading-progress">
-          <div class="loading-bar">
-            <div class="loading-bar-inner" :style="{ width: progress + '%' }"></div>
-          </div>
-        </div>
-        <div class="loading-status">
-          <span class="loading-percent">{{ progress }}%</span>
-          <span class="loading-tip">模型正在加载中…</span>
-        </div>
-      </div>
-    </div>
+    <!-- 模型加载遮罩（公共组件） -->
+    <SceneLoading
+      :visible="loading"
+      :progress="progress"
+      brand="CAR STAGE"
+      title="整车模型载入"
+      status="正在加载模型资源 · 车漆材质与光照校准中"
+      accent="#57c8ff"
+      accent2="#8ef2c8"
+    />
     <!-- 底部：车身色板 -->
     <div v-if="!loading" class="color-panel">
       <div class="color-group">
@@ -371,94 +446,6 @@ onUnmounted(() => {
   height: 100%;
   background-color: #333333;
   overflow: hidden;
-}
-
-.loading-mask {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(8, 15, 26, 0.94);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 9999;
-}
-
-.loading-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-}
-
-.loading-text {
-  font-size: 56px;
-  font-weight: 700;
-  letter-spacing: 8px;
-  background: linear-gradient(
-    90deg,
-    #3d4759 0%,
-    #ffffff 45%,
-    #ffffff 55%,
-    #3d4759 100%
-  );
-  background-size: 200% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: text-shimmer 1.8s linear infinite;
-}
-
-@keyframes text-shimmer {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
-}
-
-.loading-progress {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-}
-
-.loading-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.loading-percent {
-  font-size: 18px;
-  font-weight: bold;
-  font-family: 'Courier New', monospace;
-  color: #ffffff;
-}
-
-.loading-tip {
-  font-size: 12px;
-  color: #8899aa;
-  letter-spacing: 1px;
-}
-
-.loading-bar {
-  width: 180px;
-  height: 2px;
-  background-color: rgba(255, 255, 255, 0.1);
-  border-radius: 1px;
-  overflow: hidden;
-}
-
-.loading-bar-inner {
-  height: 100%;
-  background: linear-gradient(90deg, #409eff, #67c23a);
-  border-radius: 1px;
-  transition: width 0.3s ease;
-  box-shadow: 0 0 10px rgba(64, 158, 255, 0.6);
 }
 
 // 底部车身色板
@@ -536,9 +523,23 @@ onUnmounted(() => {
 
 <style>
 .car-label {
+  pointer-events: auto;
+  cursor: pointer;
   color: #00dddd;
+  background: rgba(10, 20, 32, 0.7);
+  border: 1px solid rgba(0, 221, 221, 0.5);
+  border-radius: 999px;
+  padding: 4px 12px;
   font-size: 14px;
-  white-space: nowrap;
+  font-family: inherit;
   letter-spacing: 1px;
+  white-space: nowrap;
+  backdrop-filter: blur(6px);
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.car-label:hover {
+  background: rgba(0, 221, 221, 0.18);
+  box-shadow: 0 0 12px rgba(0, 221, 221, 0.35);
 }
 </style>

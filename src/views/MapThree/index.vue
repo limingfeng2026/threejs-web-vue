@@ -1,11 +1,12 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 import SceneView from '@/components/SceneView/index.js'
+import SceneLoading from '@/components/SceneLoading/index.vue'
 import * as THREE from 'three'
 import TWEEN from '@tweenjs/tween.js'
 import { FresnelMaterial } from '@/components/SceneView/utils/FresnelMaterial.js'
 import appService from './api.js'
-import { vertexShader, bgPlane, pointSpread, borderLineVertex, borderSweep, beamColumn } from './effect.js'
+import { vertexShader, bgPlane, pointSpread, borderLineVertex, borderSweep, beamColumn, edgeFlowVertex, edgeFlowFragment } from './effect.js'
 
 // ============ 场景资源路径 ============
 const RES = {
@@ -13,6 +14,7 @@ const RES = {
   diffuseTex: '/3d/source/tietu/manshe_h.png',
   bumpTex: '/3d/source/tietu/dem.png',
   geoJson: '/3d/source/深圳市.json',
+  cityOutline: '/3d/source/深圳市-city.json',
 }
 
 // 卫星底图覆盖的地理边界框（由旧 OBJ 模型外接框反推的初值，实拍后可在此微调）
@@ -113,6 +115,17 @@ const addBorderLine = (borderLine, lineColor, opacity = 1) => {
   return line
 }
 
+// ============ 轮廓边缘流光（ShapePath → 闭合折线 Tube） ============
+const EDGE_FLOW_Y = 5.06
+
+// 城市外轮廓扫光可调参数
+const SWEEP = {
+  count: 2,      // 每条环上的流光条数（同一条轮廓上均匀分布）
+  tail: 0.52,    // 单条拖尾长度（弧长占比 0~1，越大尾巴越长）
+  speed: 0.18,   // 巡游速度（圈/秒）
+  radius: 0.11,  // 扫光管半径
+}
+
 // ============ 地块 GeoJSON ============
 const loadGeoJson = async () => {
   const resp = await fetch(RES.geoJson)
@@ -197,23 +210,92 @@ const loadGeoJson = async () => {
 
   // 挤出侧壁：顶到地面齐平；盖子用不可见占位材质隐藏，只保留一圈侧壁
   const wall = new THREE.Mesh(
-    new THREE.ExtrudeGeometry(groundShapes, { depth: 4.5, bevelEnabled: false }),
+    new THREE.ExtrudeGeometry(groundShapes, { depth: 4.8, bevelEnabled: false }),
     [
       new THREE.MeshBasicMaterial({ visible: false }),
       new FresnelMaterial({
-        fresnelScale: 0.5,
+        fresnelScale: 0.45,
         color: 0x0b2233,
         fresnelColor: 0x3fc6ff,
-        doubleSide: true,
+        doubleSide: false,
       }),
     ]
   )
   wall.rotateX(-Math.PI / 2)
-  wall.position.y = 0.5
+  wall.position.y = 0.2
   map.add(wall)
 
   scene.add(map)
   markPartLoaded()
+}
+
+// ============ 城市整体外轮廓扫光 ============
+// 城市外轮廓扫光管引用（供运行时显隐）
+let citySweepGroup = null
+
+// 依据外环点列生成城市轮廓扫光管（复用边缘流光 shader）
+const buildCitySweep = (loops) => {
+  const sweepGroup = new THREE.Group()
+  const total = loops.length
+  loops.forEach((pts, idx) => {
+    if (pts.length < 3) return
+    const sp = new THREE.ShapePath()
+    sp.moveTo(pts[0].x, pts[0].y)
+    for (let i = 1; i < pts.length; i++) sp.lineTo(pts[i].x, pts[i].y)
+    const sampled = []
+    sp.subPaths.forEach((sub) => sampled.push(...sub.getPoints(1)))
+    const world = sampled.map((p) => new THREE.Vector3(p.x, 0, -p.y))
+
+    const curvePath = new THREE.CurvePath()
+    for (let i = 0; i < world.length - 1; i++) {
+      curvePath.curves.push(new THREE.LineCurve3(world[i], world[i + 1]))
+    }
+    curvePath.curves.push(new THREE.LineCurve3(world[world.length - 1], world[0]))
+
+    const geo = new THREE.TubeGeometry(curvePath, Math.max(48, world.length), SWEEP.radius, 6, true)
+    const mat = new THREE.ShaderMaterial({
+      uniforms: {
+        lineColor: { value: new THREE.Color(0x3fc6ff) },
+        hiColor: { value: new THREE.Color(0x00eeff) },
+        iTime: { value: 0 },
+        uSpeed: { value: SWEEP.speed },
+        uPhase: { value: total ? idx / total : 0 },
+        uCount: { value: SWEEP.count },
+        uTail: { value: SWEEP.tail },
+        uOpacity: { value: 1.0 },
+      },
+      vertexShader: edgeFlowVertex,
+      fragmentShader: edgeFlowFragment,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    })
+    const tube = new THREE.Mesh(geo, mat)
+    tube.position.y = EDGE_FLOW_Y
+    sweepGroup.add(tube)
+  })
+  citySweepGroup = sweepGroup
+  map.add(sweepGroup)
+}
+
+// 拉取城市整体边界 GeoJSON，收集外环点列后构建扫光
+const loadCityOutline = async () => {
+  const resp = await fetch(RES.cityOutline)
+  const data = await resp.json()
+  const loops = []
+  data.features.forEach((item) => {
+    item.geometry.coordinates.forEach((polygon) => {
+      // 每个多边形只取外环（ring 0）
+      const ring = polygon[0]
+      const pts = []
+      ring.forEach((p) => {
+        const { x: px, y: py } = sceneView.projectPlane(p[0], p[1])
+        pts.push({ x: px, y: py })
+      })
+      loops.push(pts)
+    })
+  })
+  buildCitySweep(loops)
 }
 
 // ============ 贴图预加载 ============
@@ -246,9 +328,15 @@ const planeMesh = () => {
     })
   )
   planeMesh1.rotateX(-Math.PI / 2)
-  planeMesh1.position.y = -0.1
   planeMesh1.position.z = -1
   map.add(planeMesh1)
+
+  // 地面背景板叠加一层柔和镜面反射（倒映地图轮廓 / 点位 / 流光），原自发光底保留
+  sceneView.addFloorReflection(planeMesh1, {
+    reflectStrength: 0.75,
+    fresnelPower: 1.0,
+    color: 0x9fd8ff,
+  })
 
   const planeGeo2 = new THREE.PlaneGeometry(150, (150 * 1080) / 1920, 64)
   const ringMat = new THREE.ShaderMaterial({
@@ -269,6 +357,7 @@ const planeMesh = () => {
   bgRingMat = ringMat
   const planeMesh2 = new THREE.Mesh(planeGeo2, ringMat)
   planeMesh2.rotateX(-Math.PI / 2)
+  planeMesh2.position.y = 0.1
   map.add(planeMesh2)
 }
 
@@ -693,8 +782,8 @@ onMounted(() => {
       enabled: true,
       smaa: { enabled: true },
       gtao: { enabled: false },
-      bloom: { enabled: true, strength: 0.8, radius: 0.35, threshold: 0.35 },
-      vignette: { enabled: true, strength: 0.75, offset: 1.6 },
+      bloom: { enabled: true, strength: 0.6, radius: 0.35, threshold: 0.35 },
+      vignette: { enabled: true, darkness: 0.75, offset: 1.6 },
       film: { enabled: false },
       bokeh: { enabled: false },
       outline: { enabled: true, edgeStrength: 5, edgeThickness: 1 },
@@ -708,6 +797,7 @@ onMounted(() => {
 
   loadTextures()
   loadGeoJson()
+  loadCityOutline()
   planeMesh()
   createAreaText()
   getFactories()
@@ -739,13 +829,16 @@ onUnmounted(() => {
     <!-- 3D 渲染区域 -->
     <div ref="container" class="map-canvas-wrap"></div>
 
-    <!-- 加载遮罩 -->
-    <div v-if="loading" class="loading-mask">
-      <span>正在加载资源({{ Math.round(progress) }}%)</span>
-      <div class="loading-bar">
-        <div class="loading-bar-inner" :style="{ width: progress + '%' }"></div>
-      </div>
-    </div>
+    <!-- 加载遮罩（公共组件） -->
+    <SceneLoading
+      :visible="loading"
+      :progress="progress"
+      brand="MAP THREE"
+      title="园区场景载入"
+      status="正在加载模型资源 · 点位与特效初始化"
+      accent="#4fd1ff"
+      accent2="#7cf7c4"
+    />
 
     <!-- 底部：点位分类导航 -->
     <div v-if="!loading" class="footer">
@@ -808,101 +901,6 @@ onUnmounted(() => {
   height: 100%;
   background-color: #0a1929;
   overflow: hidden;
-}
-
-.loading-mask {
-  position: absolute;
-  inset: 0;
-  z-index: 9999;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  background-color: #000;
-  color: #eee;
-  font-size: 14px;
-}
-
-.loading-bar {
-  width: 240px;
-  height: 4px;
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 5px;
-  overflow: hidden;
-}
-
-.loading-bar-inner {
-  height: 100%;
-  background: #20cabf;
-  border-radius: 5px;
-  transition: width 0.2s ease;
-}
-
-// 底部分类导航
-.footer {
-  position: absolute;
-  bottom: 60px;
-  width: 100%;
-  z-index: 100;
-  user-select: none;
-
-  .foot-nav {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 20px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-
-    li {
-      .border-inner {
-        position: relative;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 220px;
-        padding: 10px 0;
-        color: #fff;
-        background-color: rgba(23, 88, 107, 0.3);
-        border: 1px solid #1e606d;
-        cursor: pointer;
-        transition: background-color 0.2s ease;
-
-        &:hover {
-          background-color: rgba(23, 88, 107, 0.6);
-        }
-
-        &.active1 {
-          border-color: #2ca796;
-          background: linear-gradient(0deg, #127c6e, #2ca796);
-        }
-        &.active2 {
-          border-color: #aaab4e;
-          background: linear-gradient(0deg, #877631, #aaab4e);
-        }
-        &.active3 {
-          border-color: #2c94a7;
-          background: linear-gradient(0deg, #13597d, #2c94a7);
-        }
-
-        .nav-text {
-          text-align: center;
-          h6 {
-            margin: 0 0 2px 0;
-            font-size: 18px;
-            font-weight: 600;
-          }
-          span {
-            font-size: 12px;
-            opacity: 0.8;
-          }
-        }
-      }
-    }
-  }
 }
 </style>
 

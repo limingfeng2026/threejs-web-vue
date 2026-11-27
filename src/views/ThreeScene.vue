@@ -2,21 +2,16 @@
   <div class="sence-container">
     <!-- 3D 渲染区域 -->
     <div ref="container" class="sence-canvas-wrap"></div>
-    <!-- 模型加载 Loading -->
-    <div v-if="loading" class="loading-mask">
-      <div class="loading-content">
-        <div class="loading-text">Loading</div>
-        <div class="loading-progress">
-          <div class="loading-bar">
-            <div class="loading-bar-inner" :style="{ width: loadProgress + '%' }"></div>
-          </div>
-        </div>
-        <div class="loading-status">
-          <span class="loading-percent">{{ loadProgress }}%</span>
-          <span class="loading-tip">模型正在加载中…</span>
-        </div>
-      </div>
-    </div>
+    <!-- 模型加载遮罩（公共组件） -->
+    <SceneLoading
+      :visible="loading"
+      :progress="loadProgress"
+      brand="THREE SCENE"
+      title="场景资源载入"
+      status="正在加载模型与贴图 · 场景预编译中"
+      accent="#39d8ff"
+      accent2="#7ce8c8"
+    />
     <div :class="{'show': maskShow}" class="container-mask"></div>
     <button v-if="isIntoTargetScene && !isIntoLoading" class="back-btn" @click="switchBack">
       返回
@@ -27,6 +22,7 @@
 <script setup>
 import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
 import SceneView from '@/components/SceneView/index.js';
+import SceneLoading from '@/components/SceneLoading/index.vue'
 import { Water } from 'three/examples/jsm/objects/Water.js';
 const container = ref(null)
 const loadProgress = ref(0)
@@ -767,93 +763,6 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-.loading-mask {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(8, 15, 26, 0.94);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 9999;
-}
-
-.loading-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-}
-
-.loading-text {
-  font-size: 56px;
-  font-weight: 700;
-  letter-spacing: 8px;
-  background: linear-gradient(
-    90deg,
-    #3d4759 0%,
-    #ffffff 45%,
-    #ffffff 55%,
-    #3d4759 100%
-  );
-  background-size: 200% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: text-shimmer 1.8s linear infinite;
-}
-
-@keyframes text-shimmer {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
-}
-
-.loading-progress {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-}
-
-.loading-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.loading-percent {
-  font-size: 18px;
-  font-weight: bold;
-  font-family: 'Courier New', monospace;
-  color: #ffffff;
-}
-
-.loading-tip {
-  font-size: 12px;
-  color: #8899aa;
-  letter-spacing: 1px;
-}
-
-.loading-bar {
-  width: 180px;
-  height: 2px;
-  background-color: rgba(255, 255, 255, 0.1);
-  border-radius: 1px;
-  overflow: hidden;
-}
-
-.loading-bar-inner {
-  height: 100%;
-  background: linear-gradient(90deg, #409eff, #67c23a);
-  border-radius: 1px;
-  transition: width 0.3s ease;
-  box-shadow: 0 0 10px rgba(64, 158, 255, 0.6);
-}
 </style>
 <style>
 

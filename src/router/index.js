@@ -26,6 +26,18 @@ const routes = [
     meta: { title: '深圳水务 3D 地图' },
   },
   {
+    path: '/earth-scene',
+    name: 'EarthScene',
+    component: () => import('@/views/EarthScene/index.vue'),
+    meta: { title: '地球大屏可视化' },
+  },
+  {
+    path: '/city-map',
+    name: 'CityMap',
+    component: () => import('@/views/CityMap/index.vue'),
+    meta: { title: '长沙城市点位' },
+  },
+  {
     path: '/about',
     name: 'About',
     component: () => import('@/views/About.vue'),

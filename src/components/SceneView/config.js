@@ -99,7 +99,7 @@ export function createDefaultParams() {
             enabled: false,
             color: 0x333333,
             width: 500,
-            height: 300,
+            height: 500,
             depth: 0.2,
             roughness: 0.92,
             metalness: 0.0,
@@ -246,7 +246,7 @@ export function createDefaultParams() {
             vignette: {
                 enabled: true,
                 offset: 1.6,
-                darkness: 0.35,
+                darkness: 0.75,
             },
             film: {
                 enabled: false,
