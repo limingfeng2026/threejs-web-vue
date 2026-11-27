@@ -1,5 +1,6 @@
 <script setup>
-import { useRoute } from 'vue-router'
+import { computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useTheme } from '@/composables/useTheme'
 import { useSidebar } from '@/composables/useSidebar'
 import { useResponsive } from '@/composables/useResponsive'
@@ -7,22 +8,37 @@ import { useNavDrawer } from '@/composables/useNavDrawer'
 import { navMenus, placeholderMenus } from '@/config/menus'
 
 const route = useRoute()
+const router = useRouter()
 const { isDark, toggleTheme } = useTheme()
 const { isCollapse, toggleSidebar } = useSidebar()
 const { isMobile } = useResponsive()
 const { navOpen, openNav, closeNav } = useNavDrawer()
+
+// 场景页（3D / 大屏）：隐藏顶部横向菜单与左侧栏，只在 header 留一个返回入口
+const isScenePage = computed(() => route.meta.scene === true)
 
 // 移动端：按钮打开导航抽屉；桌面端：按钮折叠侧边栏
 const onHeaderMenuClick = () => {
   if (isMobile.value) openNav()
   else toggleSidebar()
 }
+
+const goHome = () => {
+  router.push('/')
+}
 </script>
 
 <template>
   <div class="app-wrapper">
-    <el-header class="app-header">
-      <el-button class="collapse-btn" circle text @click="onHeaderMenuClick">
+    <el-header class="app-header" :class="{ 'is-scene': isScenePage }">
+      <!-- 场景页：只留返回入口，不再显示站内菜单 -->
+      <el-button v-if="isScenePage" class="back-btn" text @click="goHome">
+        <el-icon :size="16"><ArrowLeft /></el-icon>
+        <span class="back-text">返回列表</span>
+      </el-button>
+
+      <!-- 目录页：移动端开抽屉，桌面端折叠侧栏 -->
+      <el-button v-else class="collapse-btn" circle text @click="onHeaderMenuClick">
         <el-icon :size="18">
           <Menu v-if="isMobile" />
           <Fold v-else-if="!isCollapse" />
@@ -30,13 +46,13 @@ const onHeaderMenuClick = () => {
         </el-icon>
       </el-button>
 
-      <div class="logo">
+      <div class="logo" @click="goHome">
         <el-icon color="#409eff"><Platform /></el-icon>
         <span class="logo-text">Vue3 Element App</span>
       </div>
 
       <el-menu
-        v-if="!isMobile"
+        v-if="!isMobile && !isScenePage"
         :default-active="route.path"
         class="app-menu"
         mode="horizontal"
@@ -63,8 +79,9 @@ const onHeaderMenuClick = () => {
       <router-view />
     </el-main>
 
-    <!-- 移动端导航抽屉 -->
+    <!-- 移动端导航抽屉（仅目录页需要导航） -->
     <el-drawer
+      v-if="!isScenePage"
       v-model="navOpen"
       direction="ltr"
       size="min(264px, 82vw)"
@@ -108,6 +125,8 @@ const onHeaderMenuClick = () => {
 }
 
 .app-header {
+  position: relative;
+  z-index: 1000;
   display: flex;
   align-items: center;
   gap: 20px;
@@ -126,6 +145,22 @@ const onHeaderMenuClick = () => {
   }
 }
 
+// 场景页的返回入口
+.back-btn {
+  flex-shrink: 0;
+  gap: 4px;
+  padding: 0 6px;
+  color: var(--text-primary);
+
+  &:hover {
+    color: $primary-color;
+  }
+
+  .back-text {
+    font-size: 14px;
+  }
+}
+
 .logo {
   display: flex;
   align-items: center;
@@ -135,6 +170,11 @@ const onHeaderMenuClick = () => {
   font-weight: 700;
   color: var(--text-primary);
   white-space: nowrap;
+  cursor: pointer;
+
+  &:hover {
+    opacity: 0.82;
+  }
 }
 
 .app-menu {

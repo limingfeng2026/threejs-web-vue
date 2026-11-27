@@ -402,7 +402,11 @@ const display = computed(() => String(Math.round(pct.value)).padStart(2, '0'))
 
 /* ---------- 进出场 ---------- */
 .sl-fade-enter-active { transition: opacity 0.35s ease; }
-.sl-fade-leave-active { transition: opacity 0.55s ease, transform 0.55s ease, filter 0.55s ease; }
+.sl-fade-leave-active {
+  transition: opacity 0.55s ease, transform 0.55s ease, filter 0.55s ease;
+  /* 退场期间不再拦截点击，避免动画卡住时整页点不动 */
+  pointer-events: none;
+}
 .sl-fade-enter-from { opacity: 0; }
 .sl-fade-leave-to { opacity: 0; transform: scale(1.03); filter: blur(6px); }
 
