@@ -50,3 +50,54 @@ a {
 .page-container {
   padding: 20px;
 }
+
+// ============ 移动端导航抽屉 ============
+// el-drawer 会 teleport 到 body，scoped 样式管不到内部节点，统一放全局
+.nav-drawer {
+  .el-drawer__body {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-sidebar);
+  }
+}
+
+.nav-drawer-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 52px;
+  padding: 0 16px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.nav-drawer-menu {
+  flex: 1;
+  overflow: auto;
+  border-right: none;
+  background: var(--bg-sidebar);
+
+  .el-menu-item {
+    color: var(--text-regular);
+
+    &.is-active {
+      color: $primary-color;
+      background: rgba(64, 158, 255, 0.12);
+    }
+  }
+
+  .placeholder-item {
+    opacity: 0.55;
+  }
+}
+
+// 移动端禁用页面横向滚动，避免卡片撑破视口
+@media (max-width: 768px) {
+  html,
+  body {
+    overflow-x: hidden;
+  }
+}

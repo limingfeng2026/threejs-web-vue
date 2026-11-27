@@ -1,31 +1,23 @@
 <script setup>
+import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useSidebar } from '@/composables/useSidebar'
+import { useResponsive } from '@/composables/useResponsive'
+import { navMenus, placeholderMenus } from '@/config/menus'
 
 const router = useRouter()
 const route = useRoute()
 
 // 折叠状态与顶部按钮共享
 const { isCollapse } = useSidebar()
+// 移动端不渲染左侧栏，改由 header 抽屉导航
+const { isMobile } = useResponsive()
 
-// 可跳转的真实路由菜单
-const menus = [
-  { index: '/', title: '项目列表', icon: 'HomeFilled' },
-  { index: '/three-scene', title: '3D 场景', icon: 'Box' },
-  { index: '/car-scene', title: '汽车演示', icon: 'Van' },
-  { index: '/map-three', title: '水务地图', icon: 'MapLocation' },
-  { index: '/earth-scene', title: '地球大屏', icon: 'Sunny' },
-  { index: '/city-map', title: '长沙点位', icon: 'Place' },
-  { index: '/about', title: '关于', icon: 'InfoFilled' },
-]
+const menus = navMenus
+const placeholders = placeholderMenus
 
-// 业务占位菜单（暂不绑定路由）
-const placeholders = [
-  { index: 'ph-warehouse', title: '仓库管理', icon: 'List' },
-  { index: 'ph-monitor', title: '设备监控', icon: 'Monitor' },
-  { index: 'ph-alarm', title: '告警中心', icon: 'Bell' },
-  { index: 'ph-setting', title: '系统设置', icon: 'Setting' },
-]
+// 手机端卡片间距收紧
+const gutter = computed(() => (isMobile.value ? 12 : 16))
 
 const onSelect = (index) => {
   if (index.startsWith('/')) {
@@ -84,8 +76,8 @@ const openProject = (item) => {
 
 <template>
   <div class="project-layout">
-    <!-- 左侧可折叠菜单 -->
-    <aside class="sidebar" :class="{ collapsed: isCollapse }">
+    <!-- 左侧可折叠菜单（移动端隐藏，用 header 抽屉导航） -->
+    <aside v-if="!isMobile" class="sidebar" :class="{ collapsed: isCollapse }">
       <el-menu
         :collapse="isCollapse"
         :collapse-transition="false"
@@ -116,8 +108,17 @@ const openProject = (item) => {
         <p class="list-subtitle">点击卡片进入对应项目页面</p>
       </div>
 
-      <el-row :gutter="16">
-        <el-col v-for="item in projects" style="margin-bottom: 16px;" :key="item.path" :xs="24" :sm="12" :md="8">
+      <el-row :gutter="gutter">
+        <el-col
+          v-for="item in projects"
+          class="project-col"
+          :key="item.path"
+          :xs="24"
+          :sm="12"
+          :md="8"
+          :lg="8"
+          :xl="6"
+        >
           <el-card class="project-card" shadow="hover" @click="openProject(item)">
             <div class="card-icon">
               <el-icon :size="28"><component :is="item.icon" /></el-icon>
@@ -143,6 +144,10 @@ const openProject = (item) => {
   min-height: 0;
   display: flex;
   align-items: stretch;
+}
+
+.project-col {
+  margin-bottom: 16px;
 }
 
 // ============ 侧边栏 ============
@@ -204,9 +209,13 @@ const openProject = (item) => {
   cursor: pointer;
   border-radius: $border-radius;
   transition: transform 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
 
-  &:hover {
-    transform: translateY(-4px);
+  // 只在真正支持 hover 的指针设备上抬升，触屏点击后不会残留 hover 态
+  @media (hover: hover) and (pointer: fine) {
+    &:hover {
+      transform: translateY(-4px);
+    }
   }
 
   .card-icon {
@@ -244,6 +253,99 @@ const openProject = (item) => {
 
   .card-btn {
     width: 100%;
+  }
+}
+
+// ============ 移动端适配（<= 768px） ============
+@media (max-width: 768px) {
+  // 侧边栏隐藏后，内容区独占整宽，底部留安全区
+  .sidebar-main {
+    padding: 14px 12px calc(20px + env(safe-area-inset-bottom));
+  }
+
+  .list-header {
+    margin-bottom: 14px;
+  }
+
+  .list-title {
+    font-size: 19px;
+  }
+
+  .list-subtitle {
+    margin-top: 4px;
+    font-size: 13px;
+  }
+
+  .project-col {
+    margin-bottom: 12px;
+  }
+
+  .project-card {
+    .card-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      margin-bottom: 12px;
+
+      :deep(.el-icon) {
+        font-size: 22px;
+      }
+    }
+
+    .card-title {
+      font-size: 16px;
+      margin-bottom: 6px;
+    }
+
+    .card-desc {
+      font-size: 13px;
+      line-height: 1.55;
+      min-height: 0;
+      // 手机上一屏塞更多卡片，描述最多三行
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .card-tags {
+      gap: 6px;
+      margin: 10px 0 12px;
+
+      :deep(.el-tag) {
+        font-size: 11px;
+      }
+    }
+
+    .card-btn {
+      height: 36px;
+    }
+  }
+
+  // 卡片内边距收紧，避免手机上左右太空
+  :deep(.el-card__body) {
+    padding: 14px;
+  }
+}
+
+// 窄屏（<= 400px）进一步压缩，保证标题不换行太多
+@media (max-width: 400px) {
+  .sidebar-main {
+    padding: 10px 10px calc(18px + env(safe-area-inset-bottom));
+  }
+
+  .list-title {
+    font-size: 17px;
+  }
+
+  .project-card {
+    .card-desc {
+      -webkit-line-clamp: 2;
+    }
+  }
+
+  :deep(.el-card__body) {
+    padding: 12px;
   }
 }
 </style>
