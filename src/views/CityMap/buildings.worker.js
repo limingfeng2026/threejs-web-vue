@@ -3,13 +3,14 @@
 // 几何构造不阻塞页面主线程。
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
+import { fixUrl } from '@/utils/basePath'
 
 const MERC_R = 6378137
 
 self.addEventListener('message', async (e) => {
   const { url, center, worldScale, heightScale, minHeight, maxHeight } = e.data
 
-  const resp = await fetch(url)
+  const resp = await fetch(fixUrl(url))
   const data = await resp.json()
 
   const [centerLng, centerLat] = center

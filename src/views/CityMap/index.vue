@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import SceneView from '@/components/SceneView/index.js'
 import SceneLoading from '@/components/SceneLoading/index.vue'
+import { fixUrl } from '@/utils/basePath'
 import * as THREE from 'three'
 import TWEEN from '@tweenjs/tween.js'
 import {
@@ -35,6 +36,8 @@ const loadPoiData = async () => {
   const list = Array.isArray(data.points) ? data.points : []
   CITY_POINTS = list.map((p, i) => ({
     ...p,
+    // <img> 不经过 three 的 LoadingManager，这里手动补站点前缀
+    img: fixUrl(p.img),
     lng: +(+p.lng + POI_D_LNG).toFixed(6),
     lat: +(+p.lat + POI_D_LAT).toFixed(6),
     color: POI_COLORS[i % POI_COLORS.length],

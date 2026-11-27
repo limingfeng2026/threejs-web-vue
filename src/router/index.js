@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHashHistory } from 'vue-router'
 
 const routes = [
   {
@@ -50,8 +50,9 @@ const routes = [
   },
 ]
 
+// GitHub Pages 没有 SPA 回退规则，刷新 /city-map 这种路径会 404，所以用 hash 路由
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHashHistory(),
   routes,
 })
 
