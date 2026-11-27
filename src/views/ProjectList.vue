@@ -67,6 +67,14 @@ const projects = [
     tags: ['墨卡托投影', '点位标注', '汇聚飞线'],
     icon: 'Place',
   },
+  {
+    path: '/acs-three',
+    title: '门禁三维数字孪生',
+    description:
+      '从 three2024 迁移的门禁出入管理场景：办公楼 GLB 模型与玻璃材质、6 个房间门禁设备标签、刷卡开门动画、人员轨迹演示与相机跟随漫游、多视角快速切换。',
+    tags: ['门禁孪生', '轨迹演示', '多视角切换'],
+    icon: 'Lock',
+  },
 ]
 
 const openProject = (item) => {

@@ -38,6 +38,12 @@ const routes = [
     meta: { title: '长沙城市点位', scene: true },
   },
   {
+    path: '/acs-three',
+    name: 'AcsThree',
+    component: () => import('@/views/AcsThree/index.vue'),
+    meta: { title: '门禁三维数字孪生', scene: true },
+  },
+  {
     path: '/about',
     name: 'About',
     component: () => import('@/views/About.vue'),

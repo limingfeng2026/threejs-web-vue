@@ -6,6 +6,7 @@ export const navMenus = [
   { index: '/map-three', title: '水务地图', icon: 'MapLocation' },
   { index: '/earth-scene', title: '地球大屏', icon: 'Sunny' },
   { index: '/city-map', title: '长沙点位', icon: 'Place' },
+  { index: '/acs-three', title: '门禁孪生', icon: 'Lock' },
   { index: '/about', title: '关于', icon: 'InfoFilled' },
 ]
 
