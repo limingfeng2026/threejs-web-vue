@@ -47,6 +47,7 @@
   import * as THREE from 'three'
   import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js' // 控制器
   import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+  import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js'
   import TWEEN from '@tweenjs/tween.js'
   import Object3DEvent from '@/components/SceneView/utils/object3DEvent.js'
   import { CSS3DRenderer, CSS3DSprite, CSS3DObject } from 'three/examples/jsm/renderers/CSS3DRenderer.js'
@@ -81,7 +82,12 @@
     "1906.1907": [[111,0,70], [-36,0,66]]
   };
   const textureLoader = new THREE.TextureLoader();
-  const arrowTexture = textureLoader.load('/glb/arrow.svg', (texture) => {
+  const BASE = import.meta.env.BASE_URL   // 站点部署在子目录时，资源路径必须带 base
+  // Draco 解码器（scene_opt.glb 为 Draco 压缩版本，走 CDN 前需解压几何）
+  const dracoLoader = new DRACOLoader();
+  dracoLoader.setDecoderPath(`${import.meta.env.BASE_URL}3d/draco/`);
+  const SCENE_GLB_SIZE = 1358912; // scene_opt.glb 字节数，用于加载进度
+  const arrowTexture = textureLoader.load(BASE + 'glb/arrow.svg', (texture) => {
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
     texture.repeat.set(1, 1);
@@ -397,6 +403,7 @@
       // 加载 GLB 模型的方法
       loadGLBModel(filePath, showLoading) {
         const loader = new GLTFLoader();
+        loader.setDRACOLoader(dracoLoader);   // 压缩版模型需要 Draco 解码
         return new Promise((resolve, reject) => {
           // 存储需要闪烁的球体
           loader.load(
@@ -406,7 +413,7 @@
             },
             (xhr) => {
               if(showLoading) {
-                this.progress = Math.floor(xhr.loaded / 22391520 * 100)
+                this.progress = Math.floor(xhr.loaded / SCENE_GLB_SIZE * 100)
               }
             },
             (error) => {
@@ -1260,7 +1267,7 @@
       this.$nextTick(() => this.resizeView())
       // 调用加载 GLB 模型的方法，替换为实际的文件路径
       this.showLoading = true
-      this.loadGLBModel('/glb/scene/scene.glb', true).then((gltf) => {
+      this.loadGLBModel(BASE + 'glb/scene/scene_opt.glb', true).then((gltf) => {
         setTimeout(() => {
           this.handerRooms(gltf)
           // 调用创建人物模型的方法
@@ -1279,11 +1286,11 @@
         }, 300)
       }) 
       // 加载女人物模型
-      this.loadGLBModel('/glb/woman.glb').then((gltf) => {
+      this.loadGLBModel(BASE + 'glb/woman.glb').then((gltf) => {
         this.handerPersonWoman(gltf)
       })
       // 加载男性人物模型
-      this.loadGLBModel('/glb/man.glb').then((gltf) => {
+      this.loadGLBModel(BASE + 'glb/man.glb').then((gltf) => {
         this.handerPersonMan(gltf) 
       })
       window.addEventListener('resize', this.resizeView)
