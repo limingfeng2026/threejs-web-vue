@@ -2,43 +2,49 @@
   <div class="asc-home-three-view" ref="threeWrap">
     <div class="home-view" ref="views"></div>
     <!-- 添加视角切换按钮 -->
+    <!-- 视角 / 演示控制区 -->
     <div class="view-buttons-bottom" :class="{ isRoaming }" v-show="!showLoading">
       <div class="view-button">
         <el-button
-        v-show="userInfo.trackDetailList && userInfo.trackDetailList.length > 0" 
+        v-show="userInfo.trackDetailList && userInfo.trackDetailList.length > 0"
         :type="isRunPath ? 'primary' : ''"
-        @click="runTrajectory">{{!isRunPath ? '轨迹演示':'取消演示'}}</el-button>
-        <el-button 
+        class="tech-btn"
+        @click="runTrajectory"><span class="tech-btn-text">{{!isRunPath ? '轨迹演示':'取消演示'}}</span></el-button>
+        <el-button
           v-show="userInfo.trackDetailList && userInfo.trackDetailList.length > 0 && isRunPath"
           :type="isRoaming ? 'primary' : ''"
-          @click="onFollowing">{{!isRoaming ? '开启漫游':'关闭漫游'}}</el-button>
+          class="tech-btn"
+          @click="onFollowing"><span class="tech-btn-text">{{!isRoaming ? '开启漫游':'关闭漫游'}}</span></el-button>
       </div>
       <div class="view-button1">
-        <div 
+        <div
           v-for="(item, index) in modelCameras"
           :key="item.key"
           class="custom-view-item"
           :class="{ 'active': viewIndex === index }"
           @click="switchToView(index)"
         >
-          <!-- 房间名称 -->
+          <!-- 视角座：刻度环 + 核心光点 + 编号 -->
+          <div class="view-orb">
+            <span class="view-orb-ring"></span>
+            <span class="view-orb-core"></span>
+            <span class="view-orb-index">{{ String(index + 1).padStart(2, '0') }}</span>
+          </div>
           <div class="room-name-view">
-            <!-- <svg-icon v-if="viewIndex !== index" class-name="room-icon" icon-class="views-icon" />
-            <svg-icon v-if="viewIndex === index" class-name="room-icon" icon-class="views-icon1" /> -->
             <span class="room-name">{{ item.name }}</span>
           </div>
-          <!-- 椭圆托盘 -->
-          <img v-if="viewIndex !== index" class="ellipse-tray" src="@/assets/light01.png" alt="">
-          <img v-if="viewIndex === index" class="ellipse-tray" src="@/assets/light04.png" alt="">
         </div>
       </div>
     </div>
-    <div class="progress-mask-views" :class="{loaded: !showLoading}">
-        <div class="progress-inner-view">
-          <el-progress :percentage="progress" :stroke-width="10" style="width: 100%" :format="format" color="#13ce66"></el-progress>
-          <span class="progress-text">模型加载中...</span>
-        </div>
-    </div>
+    <!-- 全局公共加载遮罩 -->
+    <SceneLoading
+      :visible="showLoading"
+      :progress="progress"
+      title="门禁三维数字孪生"
+      brand="ACS · DIGITAL TWIN"
+      status="正在加载门禁场景资源"
+      theme="dark"
+    />
   </div>
 </template>
 
@@ -46,6 +52,7 @@
   import { markRaw } from 'vue'
   import * as THREE from 'three'
   import SceneView from '@/components/SceneView/index.js'   // 场景统一由组件库装配
+  import SceneLoading from '@/components/SceneLoading/index.vue'   // 全局公共加载遮罩
   import TWEEN from '@tweenjs/tween.js'
   import { PathPointList, PathGeometry } from 'three.path'
   let sceneView;   // SceneView 实例：渲染循环 / 控制器 / 文本层都归它管
@@ -83,6 +90,7 @@
   })
   export default {
     name: 'scs-home',
+    components: { SceneLoading },
     data() {
       return {
         views: null,
@@ -279,9 +287,6 @@
       } 
     },
     methods: {
-      format() {
-        return ''
-      },
       // 场景初始化：统一交给 SceneView 装配（不再页面手写 renderer/scene/controls）
       init() {
         this.views = this.$refs.views
@@ -1268,37 +1273,6 @@
   position: relative;
   background: #C7FFFF;
   border: none;
-  .progress-mask-views {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.3);
-    z-index: 100;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-    text-align: center;
-    opacity: 1;
-    pointer-events: auto;
-    .progress-inner-view {
-      width: 200px;
-    }
-    .progress-text {
-      padding: 0;
-      line-height: 14px;
-      font-size: 14px;
-      color: #fff;
-      text-shadow: 1px 1px 2px rgba(0, 0, 0, 1); 
-    }
-    &.loaded {
-      opacity: 0;
-      transition: opacity 1s ease-out;
-      pointer-events: none;
-    }
-  }
   .home-view {
     position: absolute;
     top: 0;
@@ -1320,131 +1294,268 @@
     width: 100%;
     position: absolute;
     left: 0;
-    bottom: 6px;
+    bottom: 0;
     z-index: 9;
     pointer-events: none;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 5;
+    gap: 12px;
+    padding: 14px 0 12px;
+    background: linear-gradient(to top, rgba(3, 10, 18, 0.72) 0%, rgba(3, 10, 18, 0.22) 62%, transparent 100%);
     transition: 0.8s ease-in;
     transform: translateY(0);
+    &::before {
+      content: '';
+      position: absolute;
+      left: 12%;
+      right: 12%;
+      top: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(79, 209, 255, 0.55), rgba(124, 247, 196, 0.4), rgba(79, 209, 255, 0.55), transparent);
+    }
     &.isRoaming {
-      transform: translateY(50px);
+      transform: translateY(54px);
       transition: 0.8s ease-out;
     }
-    ::v-deep {
-      .view-button .el-button {
-        pointer-events: auto;
-        width: 100px;
-        padding: 8px 0;
-        color: #fff;
-        text-shadow: 1px 1px 2px rgba(0, 0, 0, 1); 
+    .view-button {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      pointer-events: auto;
+    }
+    // 切角科技按钮：深空底 + 青色细边 + 扫光 + 内发光
+    ::v-deep .tech-btn.el-button {
+      position: relative;
+      overflow: hidden;
+      width: 112px;
+      height: 34px;
+      margin: 0;
+      padding: 0 10px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #cfeaff;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      background: linear-gradient(180deg, rgba(10, 32, 50, 0.94) 0%, rgba(5, 15, 26, 0.94) 100%);
+      border: 1px solid rgba(79, 209, 255, 0.34);
+      border-radius: 2px;
+      clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px);
+      box-shadow: inset 0 0 12px rgba(79, 209, 255, 0.12), 0 6px 16px rgba(0, 0, 0, 0.42);
+      transition: color 0.25s, border-color 0.25s, box-shadow 0.25s;
+      &::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(79, 209, 255, 0.9), transparent);
+        opacity: 0.7;
       }
-      .el-button--default {
-        background: linear-gradient(to bottom, transparent 0, #45e6e3a4 100%);
-        border-color: #45e6e2;
+      &::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -65%;
+        width: 42%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(124, 247, 196, 0.32), transparent);
+        transform: skewX(-20deg);
+        animation: techSweep 3.6s ease-in-out infinite;
       }
-      .el-button--primary {
-        background: linear-gradient(to bottom, transparent 0, #ff6640b2 100%);
-        border-color: #ff6640;
+      &:hover {
+        color: #eafcff;
+        border-color: rgba(124, 247, 196, 0.6);
+        background: linear-gradient(180deg, rgba(14, 44, 64, 0.96) 0%, rgba(6, 20, 32, 0.96) 100%);
+        box-shadow: inset 0 0 16px rgba(79, 209, 255, 0.24), 0 0 18px rgba(79, 209, 255, 0.3);
       }
-      .view-button .el-button:hover {
-        opacity: 0.8; // 鼠标悬停时透明度变化，可按需调整
+      &.el-button--primary {
+        color: #eafff7;
+        border-color: rgba(124, 247, 196, 0.72);
+        background: linear-gradient(180deg, rgba(10, 52, 50, 0.96) 0%, rgba(6, 24, 28, 0.96) 100%);
+        box-shadow: inset 0 0 16px rgba(124, 247, 196, 0.22), 0 0 18px rgba(124, 247, 196, 0.35);
+        &:hover {
+          background: linear-gradient(180deg, rgba(12, 64, 60, 0.97) 0%, rgba(7, 30, 34, 0.97) 100%);
+          box-shadow: inset 0 0 18px rgba(124, 247, 196, 0.3), 0 0 22px rgba(124, 247, 196, 0.45);
+        }
+      }
+      .tech-btn-text {
+        position: relative;
+        z-index: 2;
       }
     }
     .view-button1 {
       display: flex;
       flex-wrap: wrap;
+      align-items: flex-end;
       justify-content: center;
-      align-items: center;
-      font-size: 14px;
-      &:last-child {
-      display: flex;
-      flex-direction: row;
-      gap: 10px;
+      gap: 18px;
+      padding: 0 12px;
+      pointer-events: none;
       .custom-view-item {
-        color: #fff;
+        pointer-events: auto;
         display: flex;
         flex-direction: column;
         align-items: center;
-        justify-content: center;
+        gap: 8px;
         cursor: pointer;
         user-select: none;
-        pointer-events: auto;
-        position: relative;
-        line-height: 24px;
-        font-weight: 550;
-        text-shadow: 1px 1px 2px rgba(0, 0, 0, 1); 
-        &.active {
-          animation: float 1s ease-in-out infinite; // 添加上下浮动动画
+        transition: transform 0.25s ease;
+        &:hover {
+          transform: translateY(-3px);
         }
+        &.active {
+          .view-orb {
+            border-color: rgba(124, 247, 196, 0.85);
+            box-shadow: inset 0 0 20px rgba(124, 247, 196, 0.35), 0 0 24px rgba(124, 247, 196, 0.45);
+            animation: orbPulse 1.8s ease-in-out infinite;
+          }
+          .view-orb-ring {
+            border-color: rgba(124, 247, 196, 0.5);
+          }
+          .view-orb-index {
+            color: #eafff7;
+            text-shadow: 0 0 12px rgba(124, 247, 196, 0.8);
+          }
+          .room-name {
+            color: #d8fff2;
+            border-color: rgba(124, 247, 196, 0.6);
+            box-shadow: 0 0 14px rgba(124, 247, 196, 0.28);
+          }
+        }
+      }
+      // 视角座：环形刻度 + 核心光点 + 编号
+      .view-orb {
+        position: relative;
+        width: 54px;
+        height: 54px;
+        display: grid;
+        place-items: center;
+        border-radius: 50%;
+        background: radial-gradient(circle at 50% 42%, rgba(22, 72, 102, 0.95) 0%, rgba(5, 16, 26, 0.96) 72%);
+        border: 1px solid rgba(79, 209, 255, 0.3);
+        box-shadow: inset 0 0 14px rgba(79, 209, 255, 0.16), 0 8px 18px rgba(0, 0, 0, 0.4);
+        transition: border-color 0.25s, box-shadow 0.25s;
+      }
+      .view-orb-ring {
+        position: absolute;
+        inset: 4px;
+        border-radius: 50%;
+        border: 1px dashed rgba(79, 209, 255, 0.28);
+        animation: orbSpin 14s linear infinite;
+      }
+      .view-orb-core {
+        position: absolute;
+        inset: 14px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(79, 209, 255, 0.4) 0%, rgba(79, 209, 255, 0) 70%);
+      }
+      .view-orb-index {
+        position: relative;
+        z-index: 2;
+        font-family: ui-monospace, 'DIN Alternate', Menlo, Consolas, monospace;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 2px;
+        color: #8fd8ff;
+        text-shadow: 0 0 10px rgba(79, 209, 255, 0.6);
       }
       .room-name-view {
-        position: absolute;
-        top: 30px;
-        left: 50%;
-        width: 100%;
-        transform: translateX(-50%);
         display: flex;
         align-items: center;
+        justify-content: center;
         flex-direction: column;
-        .room-icon {
-          width: 20px;
-          height: 20px;
-        }
       }
       .room-name {
-        width: 100%;
-        text-align: center;
-        font-size: 12px;
-        padding: 0;
-        line-height: 14px;
-      }
-      .ellipse-tray {
-        width: 60px;
-        height: 60px;
-      }
+        padding: 2px 8px;
+        font-size: 11px;
+        line-height: 15px;
+        letter-spacing: 1px;
+        color: #9fe0ff;
+        background: rgba(5, 16, 26, 0.7);
+        border: 1px solid rgba(79, 209, 255, 0.24);
+        border-radius: 2px;
+        white-space: nowrap;
+        transition: color 0.25s, border-color 0.25s, box-shadow 0.25s;
       }
     }
   }
   // 移动端：缩小视角切换按钮，避免溢出与贴边裁切
   @media (max-width: 768px) {
     .view-buttons-bottom {
-      bottom: 4px;
-      padding: 0 8px;
+      bottom: 0;
+      gap: 8px;
+      padding: 10px 4px calc(8px + env(safe-area-inset-bottom, 0px));
       box-sizing: border-box;
-      ::v-deep .view-button .el-button {
-        width: 88px;
-        padding: 6px 0;
-        font-size: 12px;
+      &.isRoaming {
+        transform: translateY(44px);
       }
-      .view-button1:last-child {
+      ::v-deep .tech-btn.el-button {
+        width: 88px;
+        height: 28px;
+        padding: 0 6px;
+        font-size: 12px;
+        letter-spacing: 1px;
+      }
+      .view-button {
+        gap: 8px;
+      }
+      .view-button1 {
+        flex-wrap: nowrap;
         gap: 6px;
-        .room-name-view {
-          top: 22px;
+        padding: 0;
+        .view-orb {
+          width: 36px;
+          height: 36px;
+        }
+        .view-orb-ring {
+          inset: 3px;
+        }
+        .view-orb-core {
+          inset: 9px;
+        }
+        .view-orb-index {
+          font-size: 10px;
+          letter-spacing: 0;
         }
         .room-name {
-          font-size: 11px;
-        }
-        .ellipse-tray {
-          width: 40px;
-          height: 40px;
+          font-size: 10px;
+          line-height: 13px;
+          padding: 1px 4px;
+          letter-spacing: 0;
         }
       }
     }
   }
 }
-// 定义上下移动动画
-@keyframes float {
+// 按钮扫光 / 视角座旋转 / 选中脉冲
+@keyframes techSweep {
   0% {
-    transform: translateY(0);
+    left: -65%;
+  }
+  55%,
+  100% {
+    left: 105%;
+  }
+}
+@keyframes orbSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes orbPulse {
+  0%,
+  100% {
+    box-shadow: inset 0 0 18px rgba(124, 247, 196, 0.28), 0 0 18px rgba(124, 247, 196, 0.35);
   }
   50% {
-    transform: translateY(-4px); // 向上移动 5px
-  }
-  100% {
-    transform: translateY(0);
+    box-shadow: inset 0 0 26px rgba(124, 247, 196, 0.45), 0 0 30px rgba(124, 247, 196, 0.6);
   }
 }
 </style>
