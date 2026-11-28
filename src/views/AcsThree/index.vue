@@ -580,7 +580,8 @@
           d = d < 1500 ? 1500 : d
           d = d < 800 ? 800 : d
         }
-        let tween = new TWEEN.Tween(start)
+        // v25 的 Tween(object, group) 必须显式加入组（true = 主组），否则 TWEEN.update 永不推进
+        let tween = new TWEEN.Tween(start, true)
             .to(end, d)
             .easing(TWEEN.Easing.Cubic.Out)
             .repeat(0)
@@ -951,12 +952,12 @@
             rotationTime = 0
           }
           // 使用 TWEEN 动画让人物旋转
-          new TWEEN.Tween(person.rotation)
+          new TWEEN.Tween(person.rotation, true)
             .to({ y: targetRotationY }, rotationTime) //人物旋转动画
             .easing(TWEEN.Easing.Cubic.Out)
             .start();
           // 使用 TWEEN 动画让人物移动，并在移动过程中更新人物朝向
-          new TWEEN.Tween(person.position)
+          new TWEEN.Tween(person.position, true)
             .to(targetPosition, moveDuration)
             .easing(TWEEN.Easing.Linear.None)
             .onUpdate(() => {
@@ -1001,7 +1002,7 @@
         // 遍历人物的所有网格并创建透明度动画
         person.traverse((child) => {
           if (child.isMesh || child.isCSS2DObject) {
-            new TWEEN.Tween({ opacity: initialOpacity })
+            new TWEEN.Tween({ opacity: initialOpacity }, true)
               .to({ opacity: finalOpacity }, fadeDuration)
               .onUpdate(({ opacity }) => {
                 if(child.material ||  child.element) {

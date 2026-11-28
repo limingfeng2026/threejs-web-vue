@@ -42,6 +42,7 @@ description: vue3-element-app 项目内基于 SceneView 组件库搭建 three.js
 - 所有三维场景（新建或从其他项目迁移）都必须基于 `SceneView` 搭建。页面里不允许出现 `new THREE.WebGLRenderer / new THREE.Scene / new OrbitControls / CSS2DRenderer / CSS3DRenderer`，也不允许用 `requestAnimationFrame` 自建渲染循环。
 - 迁移过来的项目要按本规范改造：删掉自建渲染层 → `new SceneView(container, options)`；每帧业务逻辑放进 `animateCallback`；文本走 `sceneView.createText`；模型走 `sceneView.loadGLB`；销毁走 `sceneView.clear()`。
 - 迁移时需核对两处版本差异：r150+ 的 `position/rotation/scale` 是只读访问器，只能 `.copy()` 不能整体赋值；r155+ 改为物理光照单位，老项目的光强要按约 π 倍放大才能还原亮度。
+- `@tweenjs/tween.js` 升到 25.x 后，`new Tween(object)` 必须显式传第二个参数 `true`（或一个 `Group` 实例）才会被注册进更新组：`new TWEEN.Tween(obj, true)`。漏传时补间变成"孤儿"，`TWEEN.update()` 永远不推进它——表现是位置/旋转/透明度全都不动、`onUpdate`/`onComplete` 从不触发，但页面不报任何错。迁移老项目时 `new TWEEN.Tween(x)` 全部要补 `, true`。
 
 ## 资源导航
 
